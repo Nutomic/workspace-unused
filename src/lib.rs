@@ -44,8 +44,28 @@ pub struct ItemDocsMerged {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct ApiItemInner {
-    pub function: Option<Function>,
+pub enum ApiItemInner {
+    #[serde(rename = "function")]
+    Function(Function),
+    #[serde(rename = "struct")]
+    Struct(Struct),
+    // TODO: all these are currently unsupported
+    #[serde(
+        alias = "module",
+        alias = "impl",
+        alias = "assoc_type",
+        alias = "variant",
+        alias = "struct_field",
+        alias = "trait",
+        alias = "type_alias",
+        alias = "enum",
+        alias = "constant",
+        alias = "macro",
+        alias = "assoc_const",
+        alias = "static",
+        alias = "use"
+    )]
+    Other(Value),
 }
 
 #[derive(Deserialize, Debug)]
@@ -55,4 +75,12 @@ pub struct Function {
     generics: Value,
     header: Value,
     has_body: bool,
+}
+
+#[derive(Deserialize, Debug)]
+#[allow(unused)]
+pub struct Struct {
+    generics: Value,
+    kind: Value,
+    impls: Value,
 }

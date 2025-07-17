@@ -4,7 +4,7 @@ use grep::searcher::Sink;
 use std::error::Error;
 use std::fs::File;
 use walkdir::DirEntry;
-use workspace_unused_deps::{ApiDocs, ItemDocsMerged};
+use workspace_unused_deps::{ApiDocs, ApiItemInner, ItemDocsMerged};
 use {
     grep::{
         regex::RegexMatcher,
@@ -37,22 +37,25 @@ fn unused_in_crate(crate_path: String, workspace_root: &str) -> Result<(), Box<d
         .toolchain("nightly-2025-06-22")
         .manifest_path(manifest_path)
         .all_features(true)
-        .silent(true)
+        //.silent(true)
         .build()
         .unwrap();
 
     let file = File::open(json_path)?;
-    let mut docs: ApiDocs = serde_json::from_reader(file)?;
+    let jd = &mut serde_json::Deserializer::from_reader(file);
+    let mut docs: ApiDocs = serde_path_to_error::deserialize(jd)?;
 
     let mut merged = vec![];
     for a in docs.index.into_iter() {
         let mut b = docs.paths.remove(&a.0).unwrap_or_default();
         let a = a.1;
-        if a.inner.function.is_some() {
-            b.kind = "function".to_string();
-        }
         if a.visibility != "public" {
             continue;
+        }
+        match a.inner {
+            ApiItemInner::Function(_) => b.kind = "function".to_string(),
+            ApiItemInner::Struct(_) => b.kind = "struct".to_string(),
+            ApiItemInner::Other(_) => continue,
         }
         if let (Some(name), Some(span)) = (a.name, a.span) {
             merged.push(ItemDocsMerged {
@@ -67,6 +70,7 @@ fn unused_in_crate(crate_path: String, workspace_root: &str) -> Result<(), Box<d
     for m in merged {
         let pattern = match m.kind.as_str() {
             "function" => format!(r"{}\(", m.name),
+            "struct" => format!(r"{}", m.name),
             _ => {
                 //println!("unsupported kind {}", m.kind);
                 continue;
@@ -79,7 +83,11 @@ fn unused_in_crate(crate_path: String, workspace_root: &str) -> Result<(), Box<d
             .collect();
 
         if found.is_empty() {
-            println!("Function {}() in {} is unused", m.name, m.span.filename);
+            match m.kind.as_str() {
+                "function" => println!("Function {}() in {} is unused", m.name, m.span.filename),
+                "struct" => println!("Struct {} in {} is unused", m.name, m.span.filename),
+                _ => {}
+            };
         }
     }
     Ok(())
