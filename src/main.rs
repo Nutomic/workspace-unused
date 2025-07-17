@@ -18,6 +18,8 @@ use {
 struct Args {
     #[arg(short, long)]
     workspace_root: String,
+    #[arg(short, long)]
+    features: Vec<String>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -25,19 +27,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let manifest = Manifest::from_path(format!("{}/Cargo.toml", args.workspace_root))?;
     let members = manifest.workspace.unwrap().members;
     for m in members {
-        unused_in_crate(m, &args.workspace_root)?;
+        unused_in_crate(m, &args.workspace_root, &args.features)?;
     }
     Ok(())
 }
 
-fn unused_in_crate(crate_path: String, workspace_root: &str) -> Result<(), Box<dyn Error>> {
+fn unused_in_crate(
+    crate_path: String,
+    workspace_root: &str,
+    features: &Vec<String>,
+) -> Result<(), Box<dyn Error>> {
     let manifest_path = format!("{}/{}/Cargo.toml", workspace_root, crate_path);
     println!("Looking for unused code in {crate_path}");
     let json_path = rustdoc_json::Builder::default()
         .toolchain("nightly-2025-06-22")
         .manifest_path(manifest_path)
-        .all_features(true)
-        //.silent(true)
+        .features(features)
+        .silent(true)
         .build()
         .unwrap();
 
