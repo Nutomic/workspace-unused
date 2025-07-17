@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use serde::Deserialize;
+use serde_json::Value;
 
 #[derive(Deserialize, Debug)]
 pub struct ApiDocs {
@@ -13,11 +14,20 @@ pub struct ApiItem {
     pub name: Option<String>,
     pub span: Option<ApiItemSpan>,
     pub visibility: String,
+    pub inner: ApiItemInner,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct ApiPath {
     pub kind: String,
+}
+
+impl Default for ApiPath {
+    fn default() -> Self {
+        Self {
+            kind: "none".to_string(),
+        }
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -31,4 +41,18 @@ pub struct ItemDocsMerged {
     pub span: ApiItemSpan,
     pub visibility: String,
     pub kind: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ApiItemInner {
+    pub function: Option<Function>,
+}
+
+#[derive(Deserialize, Debug)]
+#[allow(unused)]
+pub struct Function {
+    sig: Value,
+    generics: Value,
+    header: Value,
+    has_body: bool,
 }

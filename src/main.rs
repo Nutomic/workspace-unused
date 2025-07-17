@@ -28,7 +28,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .toolchain("nightly-2025-06-22")
         .manifest_path(args.manifest_path)
         .all_features(true)
-        .quiet(true)
+        .silent(true)
         .build()
         .unwrap();
 
@@ -38,17 +38,21 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut merged = vec![];
     for a in docs.index.into_iter() {
-        let b = docs.paths.remove(&a.0);
-        if let Some(b) = b {
-            let a = a.1;
-            if let (Some(name), Some(span)) = (a.name, a.span) {
-                merged.push(ItemDocsMerged {
-                    name,
-                    span,
-                    visibility: a.visibility,
-                    kind: b.kind,
-                });
-            }
+        let mut b = docs.paths.remove(&a.0).unwrap_or_default();
+        let a = a.1;
+        if a.inner.function.is_some() {
+            b.kind = "function".to_string();
+        }
+        if a.visibility != "public" {
+            continue;
+        }
+        if let (Some(name), Some(span)) = (a.name, a.span) {
+            merged.push(ItemDocsMerged {
+                name,
+                span,
+                visibility: a.visibility,
+                kind: b.kind,
+            });
         }
     }
 
@@ -65,6 +69,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .into_iter()
             .filter(|f| !f.ends_with(&m.span.filename))
             .collect();
+
         if found.is_empty() {
             println!("Function {}() in {} is unused", m.name, m.span.filename);
         }
