@@ -1,3 +1,4 @@
+use cargo_toml::Manifest;
 use clap::Parser;
 use grep::searcher::Sink;
 use std::error::Error;
@@ -16,23 +17,30 @@ use {
 #[command(version, about, long_about = None)]
 struct Args {
     #[arg(short, long)]
-    manifest_path: String,
-
-    #[arg(short, long)]
     workspace_root: String,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
+    let manifest = Manifest::from_path(format!("{}/Cargo.toml", args.workspace_root))?;
+    let members = manifest.workspace.unwrap().members;
+    for m in members {
+        unused_in_crate(m, &args.workspace_root)?;
+    }
+    Ok(())
+}
+
+fn unused_in_crate(crate_path: String, workspace_root: &str) -> Result<(), Box<dyn Error>> {
+    let manifest_path = format!("{}/{}/Cargo.toml", workspace_root, crate_path);
+    println!("Looking for unused code in {crate_path}");
     let json_path = rustdoc_json::Builder::default()
         .toolchain("nightly-2025-06-22")
-        .manifest_path(args.manifest_path)
+        .manifest_path(manifest_path)
         .all_features(true)
         .silent(true)
         .build()
         .unwrap();
 
-    dbg!(&json_path);
     let file = File::open(json_path)?;
     let mut docs: ApiDocs = serde_json::from_reader(file)?;
 
@@ -65,7 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         };
 
-        let found: Vec<_> = search(pattern, &args.workspace_root)?
+        let found: Vec<_> = search(pattern, &workspace_root)?
             .into_iter()
             .filter(|f| !f.ends_with(&m.span.filename))
             .collect();
@@ -74,7 +82,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("Function {}() in {} is unused", m.name, m.span.filename);
         }
     }
-
     Ok(())
 }
 
