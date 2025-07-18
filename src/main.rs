@@ -3,9 +3,9 @@ use clap::Parser;
 use std::error::Error;
 use std::fs::File;
 use workspace_unused_deps::{
-    ItemDocsMerged,
     rustdoc::{ApiDocs, ItemKind},
     search::search,
+    ItemDocsMerged,
 };
 
 #[derive(Parser, Debug)]
@@ -40,8 +40,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 /// Generate api docs for the crate, then print any unused items
 fn unused_in_crate(crate_path: &str, args: &Args) -> Result<(), Box<dyn Error>> {
-    let manifest_path = format!("{}/{}/Cargo.toml", args.workspace_root, crate_path);
     println!("\nLooking for unused code in {crate_path}\n===\n\n");
+
+    let manifest_path = format!("{}/{}/Cargo.toml", args.workspace_root, crate_path);
     let json_path = rustdoc_json::Builder::default()
         .toolchain("nightly-2025-06-22")
         .manifest_path(manifest_path)
@@ -58,7 +59,7 @@ fn unused_in_crate(crate_path: &str, args: &Args) -> Result<(), Box<dyn Error>> 
     for a in docs.index.into_iter() {
         let b = docs.paths.remove(&a.0).unwrap_or_default();
         let a = a.1;
-        if a.visibility != "public" {
+        if a.visibility != "public" || !b.kind.is_supported() {
             continue;
         }
         if let (Some(name), Some(span)) = (a.name, a.span) {
@@ -72,12 +73,10 @@ fn unused_in_crate(crate_path: &str, args: &Args) -> Result<(), Box<dyn Error>> 
     }
 
     for m in merged {
-        if !m.kind.is_supported() {
-            //println!("unsupported kind {:?}", m.kind);
-            continue;
-        }
+        let found = search(&m.name, &args.workspace_root)?;
 
-        let found: Vec<_> = search(&m.name, &args.workspace_root)?
+        // If item is only used in the same file where it is defined, it can be private instead
+        let found: Vec<_> = found
             .into_iter()
             .filter(|f| !f.ends_with(&m.span.filename))
             .collect();

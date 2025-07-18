@@ -7,6 +7,7 @@ This is a quick and dirty projects with many false positives and incomplete func
 ## Usage
 
 ```bash
+$ rustup toolchain install nightly-2025-06-22
 $ git clone https://github.com/Nutomic/workspace-unused.git
 $ cd workspace-unused
 $ cargo run -- -w ../lemmy/lemmy -f full
