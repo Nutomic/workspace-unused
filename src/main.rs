@@ -1,36 +1,36 @@
 use cargo_toml::Manifest;
 use clap::Parser;
-use grep::searcher::Sink;
 use std::error::Error;
 use std::fs::File;
-use walkdir::DirEntry;
 use workspace_unused_deps::{
-    parsed::ItemDocsMerged,
+    ItemDocsMerged,
     rustdoc::{ApiDocs, ItemKind},
-};
-use {
-    grep::{
-        regex::RegexMatcher,
-        searcher::{BinaryDetection, SearcherBuilder},
-    },
-    walkdir::WalkDir,
+    search::search,
 };
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
+    /// Root folder of the workspace to analyze
     #[arg(short, long)]
     workspace_root: String,
+
+    /// List of feature flags to enable for all crates
     #[arg(short, long)]
     features: Vec<String>,
+
+    /// Whether or not to pass `--quiet` to `cargo rustdoc`
+    #[arg(short, long, action)]
+    silent: bool,
 }
 
+/// Iterate workspace members
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     let manifest = Manifest::from_path(format!("{}/Cargo.toml", args.workspace_root))?;
     let members = manifest.workspace.unwrap().members;
     for m in members {
-        let res = unused_in_crate(&m, &args.workspace_root, &args.features);
+        let res = unused_in_crate(&m, &args);
         if let Err(e) = res {
             println!("Error in {} while scanning for unused code: {e}", m);
         }
@@ -38,18 +38,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn unused_in_crate(
-    crate_path: &str,
-    workspace_root: &str,
-    features: &Vec<String>,
-) -> Result<(), Box<dyn Error>> {
-    let manifest_path = format!("{}/{}/Cargo.toml", workspace_root, crate_path);
-    println!("Looking for unused code in {crate_path}");
+/// Generate api docs for the crate, then print any unused items
+fn unused_in_crate(crate_path: &str, args: &Args) -> Result<(), Box<dyn Error>> {
+    let manifest_path = format!("{}/{}/Cargo.toml", args.workspace_root, crate_path);
+    println!("\nLooking for unused code in {crate_path}\n===\n\n");
     let json_path = rustdoc_json::Builder::default()
         .toolchain("nightly-2025-06-22")
         .manifest_path(manifest_path)
-        .features(features)
-        .silent(true)
+        .features(&args.features)
+        .quiet(true)
+        .silent(args.silent)
         .build()?;
 
     let file = File::open(json_path)?;
@@ -79,7 +77,7 @@ fn unused_in_crate(
             continue;
         }
 
-        let found: Vec<_> = search(&m.name, &workspace_root)?
+        let found: Vec<_> = search(&m.name, &args.workspace_root)?
             .into_iter()
             .filter(|f| !f.ends_with(&m.span.filename))
             .collect();
@@ -96,66 +94,4 @@ fn unused_in_crate(
         }
     }
     Ok(())
-}
-
-fn search(pattern: &str, path: &str) -> Result<Vec<String>, Box<dyn Error>> {
-    let matcher = RegexMatcher::new_line_matcher(pattern)?;
-    let mut searcher = SearcherBuilder::new()
-        .binary_detection(BinaryDetection::quit(b'\x00'))
-        .line_number(false)
-        .build();
-
-    let mut found_in_paths = vec![];
-    let walker = WalkDir::new(path).into_iter();
-    for result in walker.filter_entry(|e| include_entry(e)) {
-        let dent = match result {
-            Ok(dent) => dent,
-            Err(err) => {
-                eprintln!("{}", err);
-                continue;
-            }
-        };
-        let is_rs_file = dent
-            .file_name()
-            .to_str()
-            .map(|s| s.ends_with(".rs"))
-            .unwrap_or(false);
-        if !is_rs_file {
-            continue;
-        }
-        let mut out = MySink::default();
-        let result = searcher.search_path(&matcher, dent.path(), &mut out);
-        if let Err(err) = result {
-            eprintln!("{}: {}", dent.path().display(), err);
-        }
-        if out.found {
-            found_in_paths.push(dent.path().to_string_lossy().to_string());
-        }
-    }
-    Ok(found_in_paths)
-}
-
-fn include_entry(entry: &DirEntry) -> bool {
-    let name = entry.file_name().to_str();
-    let is_hidden = name.map(|s| s.starts_with(".")).unwrap_or(false);
-    let is_target = name.map(|s| s == "target").unwrap_or(false);
-    !is_hidden && !is_target
-}
-
-#[derive(Default)]
-struct MySink {
-    found: bool,
-}
-
-impl Sink for MySink {
-    type Error = std::io::Error;
-
-    fn matched(
-        &mut self,
-        _searcher: &grep::searcher::Searcher,
-        _mat: &grep::searcher::SinkMatch<'_>,
-    ) -> Result<bool, Self::Error> {
-        self.found = true;
-        Ok(false)
-    }
 }

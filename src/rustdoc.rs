@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+//! Output data from rustdoc-json crate
 
 use serde::Deserialize;
 use serde_json::Value;
+use std::collections::HashMap;
 
 #[derive(Deserialize, Debug)]
 pub struct ApiDocs {
