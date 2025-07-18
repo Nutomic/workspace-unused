@@ -19,13 +19,59 @@ pub struct ApiItem {
 
 #[derive(Deserialize, Debug)]
 pub struct ApiPath {
-    pub kind: String,
+    pub kind: ItemKind,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum ItemKind {
+    Function,
+    Struct,
+    Enum,
+    Trait,
+    Module,
+    Union,
+    TypeAlias,
+    Variant,
+    Constant,
+    Primitive,
+    Macro,
+    ProcDerive,
+    Static,
+    TraitAlias,
+    ProcAttribute,
+    AssocType,
+    None,
+}
+
+impl ItemKind {
+    pub fn is_supported(&self) -> bool {
+        match self {
+            ItemKind::Function
+            | ItemKind::Enum
+            | ItemKind::Trait
+            | ItemKind::Struct
+            | ItemKind::Constant
+            | ItemKind::Static => true,
+            ItemKind::Module
+            | ItemKind::Union
+            | ItemKind::TypeAlias
+            | ItemKind::Variant
+            | ItemKind::Primitive
+            | ItemKind::Macro
+            | ItemKind::ProcDerive
+            | ItemKind::TraitAlias
+            | ItemKind::ProcAttribute
+            | ItemKind::AssocType
+            | ItemKind::None => false,
+        }
+    }
 }
 
 impl Default for ApiPath {
     fn default() -> Self {
         Self {
-            kind: "none".to_string(),
+            kind: ItemKind::None,
         }
     }
 }
@@ -65,8 +111,8 @@ pub enum ApiItemInner {
 pub struct Function {
     pub sig: FunctionSig,
     pub generics: Value,
-    pub  header: Value,
-    pub  has_body: bool,
+    pub header: Value,
+    pub has_body: bool,
 }
 
 #[derive(Deserialize, Debug)]

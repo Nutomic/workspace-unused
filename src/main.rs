@@ -6,7 +6,7 @@ use std::fs::File;
 use walkdir::DirEntry;
 use workspace_unused_deps::{
     parsed::ItemDocsMerged,
-    rustdoc::{ApiDocs, ApiItemInner},
+    rustdoc::{ApiDocs, ItemKind},
 };
 use {
     grep::{
@@ -58,15 +58,10 @@ fn unused_in_crate(
 
     let mut merged = vec![];
     for a in docs.index.into_iter() {
-        let mut b = docs.paths.remove(&a.0).unwrap_or_default();
+        let b = docs.paths.remove(&a.0).unwrap_or_default();
         let a = a.1;
         if a.visibility != "public" {
             continue;
-        }
-        match a.inner {
-            ApiItemInner::Function(_) => b.kind = "function".to_string(),
-            ApiItemInner::Struct(_) => b.kind = "struct".to_string(),
-            ApiItemInner::Other(_) => continue,
         }
         if let (Some(name), Some(span)) = (a.name, a.span) {
             merged.push(ItemDocsMerged {
@@ -79,33 +74,32 @@ fn unused_in_crate(
     }
 
     for m in merged {
-        let pattern = match m.kind.as_str() {
-            "function" => format!(r"{}\(", m.name),
-            "struct" => format!(r"{}", m.name),
-            _ => {
-                //println!("unsupported kind {}", m.kind);
-                continue;
-            }
-        };
+        if !m.kind.is_supported() {
+            //println!("unsupported kind {:?}", m.kind);
+            continue;
+        }
 
-        let found: Vec<_> = search(pattern, &workspace_root)?
+        let found: Vec<_> = search(&m.name, &workspace_root)?
             .into_iter()
             .filter(|f| !f.ends_with(&m.span.filename))
             .collect();
 
         if found.is_empty() {
-            match m.kind.as_str() {
-                "function" => println!("Function {}() in {} is unused", m.name, m.span.filename),
-                "struct" => println!("Struct {} in {} is unused", m.name, m.span.filename),
-                _ => {}
+            match m.kind {
+                ItemKind::Function => {
+                    println!("Function {}() in {} is unused", m.name, m.span.filename)
+                }
+                _ => {
+                    println!("{:?} {} in {} is unused", m.kind, m.name, m.span.filename)
+                }
             };
         }
     }
     Ok(())
 }
 
-fn search(pattern: String, path: &str) -> Result<Vec<String>, Box<dyn Error>> {
-    let matcher = RegexMatcher::new_line_matcher(&pattern)?;
+fn search(pattern: &str, path: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    let matcher = RegexMatcher::new_line_matcher(pattern)?;
     let mut searcher = SearcherBuilder::new()
         .binary_detection(BinaryDetection::quit(b'\x00'))
         .line_number(false)
