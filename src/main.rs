@@ -4,7 +4,10 @@ use grep::searcher::Sink;
 use std::error::Error;
 use std::fs::File;
 use walkdir::DirEntry;
-use workspace_unused_deps::{ApiDocs, ApiItemInner, ItemDocsMerged};
+use workspace_unused_deps::{
+    parsed::ItemDocsMerged,
+    rustdoc::{ApiDocs, ApiItemInner},
+};
 use {
     grep::{
         regex::RegexMatcher,
