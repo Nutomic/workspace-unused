@@ -110,7 +110,7 @@ fn search(pattern: String, path: &str) -> Result<Vec<String>, Box<dyn Error>> {
 
     let mut found_in_paths = vec![];
     let walker = WalkDir::new(path).into_iter();
-    for result in walker.filter_entry(|e| !is_hidden(e) && !is_target(e)) {
+    for result in walker.filter_entry(|e| include_entry(e)) {
         let dent = match result {
             Ok(dent) => dent,
             Err(err) => {
@@ -118,7 +118,12 @@ fn search(pattern: String, path: &str) -> Result<Vec<String>, Box<dyn Error>> {
                 continue;
             }
         };
-        if !dent.file_type().is_file() || dent.file_name().to_string_lossy().starts_with('.') {
+        let is_rs_file = dent
+            .file_name()
+            .to_str()
+            .map(|s| s.ends_with(".rs"))
+            .unwrap_or(false);
+        if !is_rs_file {
             continue;
         }
         let mut out = MySink::default();
@@ -133,20 +138,11 @@ fn search(pattern: String, path: &str) -> Result<Vec<String>, Box<dyn Error>> {
     Ok(found_in_paths)
 }
 
-fn is_hidden(entry: &DirEntry) -> bool {
-    entry
-        .file_name()
-        .to_str()
-        .map(|s| s.starts_with("."))
-        .unwrap_or(false)
-}
-
-fn is_target(entry: &DirEntry) -> bool {
-    entry
-        .file_name()
-        .to_str()
-        .map(|s| s == "target")
-        .unwrap_or(false)
+fn include_entry(entry: &DirEntry) -> bool {
+    let name = entry.file_name().to_str();
+    let is_hidden = name.map(|s| s.starts_with(".")).unwrap_or(false);
+    let is_target = name.map(|s| s == "target").unwrap_or(false);
+    !is_hidden && !is_target
 }
 
 #[derive(Default)]
