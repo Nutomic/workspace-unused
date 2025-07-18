@@ -27,13 +27,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let manifest = Manifest::from_path(format!("{}/Cargo.toml", args.workspace_root))?;
     let members = manifest.workspace.unwrap().members;
     for m in members {
-        unused_in_crate(m, &args.workspace_root, &args.features)?;
+        let res = unused_in_crate(&m, &args.workspace_root, &args.features);
+        if let Err(e) = res {
+            println!("Error in {} while scanning for unused code: {e}", m);
+        }
     }
     Ok(())
 }
 
 fn unused_in_crate(
-    crate_path: String,
+    crate_path: &str,
     workspace_root: &str,
     features: &Vec<String>,
 ) -> Result<(), Box<dyn Error>> {
@@ -44,8 +47,7 @@ fn unused_in_crate(
         .manifest_path(manifest_path)
         .features(features)
         .silent(true)
-        .build()
-        .unwrap();
+        .build()?;
 
     let file = File::open(json_path)?;
     let jd = &mut serde_json::Deserializer::from_reader(file);
@@ -116,7 +118,7 @@ fn search(pattern: String, path: &str) -> Result<Vec<String>, Box<dyn Error>> {
                 continue;
             }
         };
-        if !dent.file_type().is_file() || dent.file_name().to_str().unwrap().starts_with('.') {
+        if !dent.file_type().is_file() || dent.file_name().to_string_lossy().starts_with('.') {
             continue;
         }
         let mut out = MySink::default();
@@ -125,7 +127,7 @@ fn search(pattern: String, path: &str) -> Result<Vec<String>, Box<dyn Error>> {
             eprintln!("{}: {}", dent.path().display(), err);
         }
         if out.found {
-            found_in_paths.push(dent.path().to_str().unwrap().to_string());
+            found_in_paths.push(dent.path().to_string_lossy().to_string());
         }
     }
     Ok(found_in_paths)
