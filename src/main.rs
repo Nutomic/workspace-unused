@@ -53,6 +53,7 @@ fn unused_in_crate(crate_path: &str, args: &Args) -> Result<(), Box<dyn Error>> 
 
     let file = File::open(json_path)?;
     let jd = &mut serde_json::Deserializer::from_reader(file);
+    jd.disable_recursion_limit();
     let mut docs: ApiDocs = serde_path_to_error::deserialize(jd)?;
 
     let mut merged = vec![];
@@ -84,10 +85,10 @@ fn unused_in_crate(crate_path: &str, args: &Args) -> Result<(), Box<dyn Error>> 
         if found.is_empty() {
             match m.kind {
                 ItemKind::Function => {
-                    println!("Function {}() in {} is unused", m.name, m.span.filename)
+                    println!("Function `{}()` in {} is unused", m.name, m.span.filename)
                 }
                 _ => {
-                    println!("{:?} {} in {} is unused", m.kind, m.name, m.span.filename)
+                    println!("{:?} `{}` in {} is unused", m.kind, m.name, m.span.filename)
                 }
             };
         }
