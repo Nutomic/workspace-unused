@@ -42,6 +42,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn unused_in_crate(crate_path: &str, args: &Args) -> Result<(), Box<dyn Error>> {
     println!("\nLooking for unused code in {crate_path}\n===\n\n");
 
+    // TODO: Instead of generating docs for each workspace member one by one, we
+    //       could call `cargo doc --workspace` but rustdoc_json doesnt have that param.
     let manifest_path = format!("{}/{}/Cargo.toml", args.workspace_root, crate_path);
     let json_path = rustdoc_json::Builder::default()
         .toolchain("nightly-2025-06-22")
